@@ -7,6 +7,23 @@
   <p>Target FTE: {{ cfg.targetFte }}</p>
 </section>
 
+<section style="display:flex; gap:12px; margin: 12px 0;">
+  <div style="border:1px solid #ccc; padding:12px; min-width:220px;">
+    <div><strong>Current Week Ending</strong></div>
+    <div>{{ kpis()?.currentWeekEnding ?? '-' }}</div>
+  </div>
+
+  <div style="border:1px solid #ccc; padding:12px; min-width:220px;">
+    <div><strong>FTE Needed Next Week</strong></div>
+    <div>{{ fteNeededNextWeek() }}</div>
+  </div>
+
+  <div style="border:1px solid #ccc; padding:12px; min-width:220px;">
+    <div><strong>Revenue to Target (Current Week)</strong></div>
+    <div>{{ revenueToTargetCurrentWeek() | number }}</div>
+  </div>
+</section>
+
 <h2>Edit Week</h2>
 
 <p *ngIf="message()" style="color: green">{{ message() }}</p>

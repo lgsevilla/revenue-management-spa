@@ -3,6 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Config } from '../models/config.model';
 import { Week } from '../models/week.model';
+import { Kpis } from '../models/kpis.model';
+import { LastYearWeek } from '../models/last-year.model';
 
 @Injectable({
   providedIn: 'root',
@@ -38,6 +40,18 @@ export class ApiService {
 
   deleteWeek(user: string, weekEnding: string) {
     return this.http.delete(`${this.baseUrl}/weeks/${weekEnding}`, {
+      headers: { 'x-user': user }
+    });
+  }
+
+  getKpis(user: string) {
+    return this.http.get<Kpis>(`${this.baseUrl}/kpis`, {
+      headers: { 'x-user': user }
+    });
+  }
+
+  getLastYear(user: string) {
+    return this.http.get<LastYearWeek[]>(`${this.baseUrl}/weeks/last-year`, {
       headers: { 'x-user': user }
     });
   }

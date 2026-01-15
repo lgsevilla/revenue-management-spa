@@ -2,6 +2,8 @@ import { Component, OnInit, signal } from '@angular/core';
 import { ApiService } from './services/api';
 import { Config } from './models/config.model';
 import { Week } from './models/week.model';
+import { Kpis } from './models/kpis.model';
+import { LastYearWeek } from './models/last-year.model';
 
 @Component({
   selector: 'app-root',
@@ -13,6 +15,27 @@ export class AppComponent implements OnInit {
   config = signal<Config | null>(null);
   weeks = signal<Week[]>([]);
   error = signal<string | null>(null);
+
+  kpis = signal<Kpis | null>(null);
+  lastYear = signal<LastYearWeek[]>([]);
+
+  fteNeededNextWeek = signal<number>(0);
+  revenueToTargetCurrentWeek = signal<number>(0);
+
+  private recomputeKpisFromWeeks(): void {
+    const current = this.kpis()?.currentWeekEnding ?? '';
+
+    const all = this.weeks();
+    const currentRow = all.find(w => w.weekEnding === current);
+    this.revenueToTargetCurrentWeek.set(currentRow?.revenueToTarget ?? 0);
+
+    // next week: first weekEnding that is greater than current (ISO strings compare safely)
+    const nextRow = all
+      .filter(w => w.weekEnding > current)
+      .sort((a, b) => a.weekEnding.localeCompare(b.weekEnding))[0];
+
+    this.fteNeededNextWeek.set(nextRow?.fteToTarget ?? 0);
+  }
 
   form = {
     weekEnding: '',
@@ -41,11 +64,27 @@ export class AppComponent implements OnInit {
       ),
       error: e => this.error.set(e?.message ?? 'Failed to load weeks')
     });
+
+    this.api.getKpis(this.user).subscribe({
+      next: k => {
+        this.kpis.set(k);
+        this.recomputeKpisFromWeeks();
+      },
+      error: e => this.error.set(e?.message ?? 'Failed to load KPIs')
+    });
+
+    this.api.getLastYear(this.user).subscribe({
+      next: ly => this.lastYear.set(ly),
+      error: e => this.error.set(e?.message ?? 'Failed to load last-year data')
+    });
   }
 
   private refreshWeeks(): void {
     this.api.getWeeks(this.user).subscribe({
-      next: w => this.weeks.set([...w].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding))),
+      next: w => {
+        this.weeks.set([...w].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding)));
+        this.recomputeKpisFromWeeks();
+      },
       error: e => this.error.set(e?.message ?? 'Failed to load weeks')
     });
   }
