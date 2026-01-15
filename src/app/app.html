@@ -1,9 +1,86 @@
-<h1>{{ title() }}</h1>
+<h1>Revenue Management Tool</h1>
 
-<p *ngIf="error()" style="color: red;">
-  {{ error() }}
-</p>
+<p *ngIf="error()" style="color:red">{{ error() }}</p>
 
-<pre *ngIf="health()">
-{{ health() | json }}
-</pre>
+<section *ngIf="config() as cfg">
+  <h3>{{ cfg.market }} / {{ cfg.region }}</h3>
+  <p>Target FTE: {{ cfg.targetFte }}</p>
+</section>
+
+<h2>Edit Week</h2>
+
+<p *ngIf="message()" style="color: green">{{ message() }}</p>
+
+<form (ngSubmit)="submitForm()" #f="ngForm">
+  <div>
+    <label>Week Ending (required): </label>
+    <input
+      name="weekEnding"
+      type="date"
+      required
+      [(ngModel)]="form.weekEnding" />
+  </div>
+
+  <div>
+    <label>Target Revenue: </label>
+    <input
+      name="targetRevenue"
+      type="number"
+      [(ngModel)]="form.targetRevenue" />
+  </div>
+
+  <div>
+    <label>Actual Revenue: </label>
+    <input
+      name="actualRevenue"
+      type="number"
+      [(ngModel)]="form.actualRevenue" />
+  </div>
+
+  <div>
+    <label>Open Orders: </label>
+    <input
+      name="openOrders"
+      type="number"
+      [(ngModel)]="form.openOrders" />
+  </div>
+
+  <div>
+    <label>Revenue per FTE: </label>
+    <input
+      name="revenuePerFte"
+      type="number"
+      [(ngModel)]="form.revenuePerFte" />
+  </div>
+
+  <button type="submit">Save (POST/PUT)</button>
+  <button type="button" (click)="deleteByWeekEnding()">Delete</button>
+</form>
+
+<table *ngIf="weeks().length > 0" border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Week Ending</th>
+      <th>Target Revenue</th>
+      <th>Actual Revenue</th>
+      <th>Revenue / FTE</th>
+      <th>Open Orders</th>
+      <th>FTE to Target</th>
+      <th>Revenue to Target</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr *ngFor="let w of weeks()">
+      <td>{{ w.weekEnding }}</td>
+      <td>{{ w.targetRevenue | number }}</td>
+      <td>{{ (w.actualRevenue ?? 0) | number }}</td>
+      <td>{{ (w.revenuePerFte ?? 0) | number }}</td>
+      <td>{{ (w.openOrders ?? 0) }}</td>
+      <td>{{ w.fteToTarget }}</td>
+      <td>{{ w.revenueToTarget | number }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<p *ngIf="weeks().length === 0">No data yet.</p>
