@@ -22,6 +22,9 @@ export class AppComponent implements OnInit {
   fteNeededNextWeek = signal<number>(0);
   revenueToTargetCurrentWeek = signal<number>(0);
 
+  targetVsActualPoints = signal<Array<{ weekEnding: string; target: number; actual: number }>>([]);
+  last7VsLastYearPoints = signal<Array<{ weekEnding: string; actual: number; lastYear: number }>>([]);
+
   private recomputeKpisFromWeeks(): void {
     const current = this.kpis()?.currentWeekEnding ?? '';
 
@@ -69,12 +72,16 @@ export class AppComponent implements OnInit {
       next: k => {
         this.kpis.set(k);
         this.recomputeKpisFromWeeks();
+        this.buildChartData();
       },
       error: e => this.error.set(e?.message ?? 'Failed to load KPIs')
     });
 
     this.api.getLastYear(this.user).subscribe({
-      next: ly => this.lastYear.set(ly),
+      next: ly => {
+        this.lastYear.set(ly);
+        this.buildChartData();
+      },
       error: e => this.error.set(e?.message ?? 'Failed to load last-year data')
     });
   }
@@ -84,6 +91,7 @@ export class AppComponent implements OnInit {
       next: w => {
         this.weeks.set([...w].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding)));
         this.recomputeKpisFromWeeks();
+        this.buildChartData();
       },
       error: e => this.error.set(e?.message ?? 'Failed to load weeks')
     });
@@ -99,7 +107,6 @@ export class AppComponent implements OnInit {
       return;
     }
 
-  // Build payload with only provided fields (optional fields remain optional)
     const payload: any = { weekEnding };
 
     if (this.form.actualRevenue !== null) payload.actualRevenue = this.form.actualRevenue;
@@ -143,5 +150,55 @@ export class AppComponent implements OnInit {
         this.error.set(e?.error?.error ?? e?.message ?? 'Delete failed');
       }
     });
+  }
+
+  private buildChartData(): void {
+    const current = this.kpis()?.currentWeekEnding;
+    const weeks = this.weeks();
+    const lastYear = this.lastYear();
+
+    if (!current || weeks.length === 0) return;
+
+    const sorted = [...weeks].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding));
+
+    const currentIndex = sorted.findIndex(w => w.weekEnding === current);
+
+    const centerIndex = currentIndex !== -1 ? currentIndex : Math.max(0, sorted.length - 1);
+    const start = Math.max(0, centerIndex - 3);
+    const end = Math.min(sorted.length, centerIndex + 4);
+
+    const window7 = sorted.slice(start, end);
+
+    this.targetVsActualPoints.set(
+      window7.map(w => ({
+        weekEnding: w.weekEnding,
+        target: w.targetRevenue,
+        actual: w.actualRevenue ?? 0
+      }))
+    );
+
+    const last7 = sorted.slice(Math.max(0, sorted.length - 7));
+
+    function minusOneYearISO(iso: string): string {
+      const d = new Date(iso + "T00:00:00");
+      d.setFullYear(d.getFullYear() - 1);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    const lastYearMap = new Map(lastYear.map(x => [x.weekEnding, x.actualRevenue]));
+
+    this.last7VsLastYearPoints.set(
+      last7.map(w => {
+        const lyKey = minusOneYearISO(w.weekEnding);
+        return {
+          weekEnding: w.weekEnding,
+          actual: w.actualRevenue ?? 0,
+          lastYear: lastYearMap.get(lyKey) ?? 0
+        };
+      })
+    );
   }
 }

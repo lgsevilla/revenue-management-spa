@@ -24,6 +24,12 @@
   </div>
 </section>
 
+<h3>Chart 1 Data (Target vs Actual)</h3>
+<pre>{{ targetVsActualPoints() | json }}</pre>
+
+<h3>Chart 2 Data (Last 7 vs Last Year)</h3>
+<pre>{{ last7VsLastYearPoints() | json }}</pre>
+
 <h2>Edit Week</h2>
 
 <p *ngIf="message()" style="color: green">{{ message() }}</p>
