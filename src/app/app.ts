@@ -4,6 +4,8 @@ import { Config } from './models/config.model';
 import { Week } from './models/week.model';
 import { Kpis } from './models/kpis.model';
 import { LastYearWeek } from './models/last-year.model';
+import { ChartConfiguration, ChartData } from 'chart.js';
+import { isoWeekLabel, getIsoWeek } from './utils/date-utils';
 
 @Component({
   selector: 'app-root',
@@ -23,7 +25,7 @@ export class AppComponent implements OnInit {
   revenueToTargetCurrentWeek = signal<number>(0);
 
   targetVsActualPoints = signal<Array<{ weekEnding: string; target: number; actual: number }>>([]);
-  last7VsLastYearPoints = signal<Array<{ weekEnding: string; actual: number; lastYear: number }>>([]);
+  last7VsLastYearPoints = signal<Array<{ label: string; actual: number | null; lastYear: number }>>([]);
 
   private recomputeKpisFromWeeks(): void {
     const current = this.kpis()?.currentWeekEnding ?? '';
@@ -32,10 +34,7 @@ export class AppComponent implements OnInit {
     const currentRow = all.find(w => w.weekEnding === current);
     this.revenueToTargetCurrentWeek.set(currentRow?.revenueToTarget ?? 0);
 
-    // next week: first weekEnding that is greater than current (ISO strings compare safely)
-    const nextRow = all
-      .filter(w => w.weekEnding > current)
-      .sort((a, b) => a.weekEnding.localeCompare(b.weekEnding))[0];
+    const nextRow = all.find(w => w.weekEnding > current);
 
     this.fteNeededNextWeek.set(nextRow?.fteToTarget ?? 0);
   }
@@ -62,9 +61,11 @@ export class AppComponent implements OnInit {
     });
 
     this.api.getWeeks(this.user).subscribe({
-      next: w => this.weeks.set(
-        [...w].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding))
-      ),
+      next: w => {
+        this.weeks.set([...w].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding)));
+        this.recomputeKpisFromWeeks();
+        this.buildChartData();
+      },
       error: e => this.error.set(e?.message ?? 'Failed to load weeks')
     });
 
@@ -107,7 +108,15 @@ export class AppComponent implements OnInit {
       return;
     }
 
-    const payload: any = { weekEnding };
+    type WeekUpsertPayload = {
+      weekEnding: string;
+      actualRevenue?: number;
+      openOrders?: number;
+      revenuePerFte?: number;
+      targetRevenue?: number;
+    };
+
+    const payload: WeekUpsertPayload = { weekEnding };
 
     if (this.form.actualRevenue !== null) payload.actualRevenue = this.form.actualRevenue;
     if (this.form.openOrders !== null) payload.openOrders = this.form.openOrders;
@@ -157,7 +166,7 @@ export class AppComponent implements OnInit {
     const weeks = this.weeks();
     const lastYear = this.lastYear();
 
-    if (!current || weeks.length === 0) return;
+    if (!current || weeks.length === 0 || lastYear.length === 0) return;
 
     const sorted = [...weeks].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding));
 
@@ -179,26 +188,88 @@ export class AppComponent implements OnInit {
 
     const last7 = sorted.slice(Math.max(0, sorted.length - 7));
 
-    function minusOneYearISO(iso: string): string {
-      const d = new Date(iso + "T00:00:00");
-      d.setFullYear(d.getFullYear() - 1);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
-    }
-
-    const lastYearMap = new Map(lastYear.map(x => [x.weekEnding, x.actualRevenue]));
+    const lastYearByIsoWeek = new Map<string, number>();
+      for (const ly of lastYear) {
+        lastYearByIsoWeek.set(isoWeekLabel(ly.weekEnding), ly.actualRevenue);
+      }
 
     this.last7VsLastYearPoints.set(
       last7.map(w => {
-        const lyKey = minusOneYearISO(w.weekEnding);
+        const { weekYear, week } = getIsoWeek(w.weekEnding);
+        const weekLabel = `W${String(week).padStart(2, "0")}`;
+        const lastYearKey = `${weekYear - 1}-W${String(week).padStart(2, "0")}`;
+
         return {
-          weekEnding: w.weekEnding,
-          actual: w.actualRevenue ?? 0,
-          lastYear: lastYearMap.get(lyKey) ?? 0
+          label: weekLabel,          
+          actual: (w.actualRevenue && w.actualRevenue > 0) ? w.actualRevenue : null,
+          lastYear: lastYearByIsoWeek.get(lastYearKey) ?? 0
         };
       })
     );
+
+    // ---- bind Chart 1 (Target vs Actual) ----
+    const p1 = this.targetVsActualPoints();
+
+    const targetRevenue: number[] = p1.map(x => x.target);
+    const actualRevenue: number[] = p1.map(x => x.actual);
+
+    this.targetVsActualChartData = {
+      labels: p1.map(x => x.weekEnding),
+      datasets: [
+        { label: 'Target Revenue', data: targetRevenue },
+        { label: 'Actual Revenue', data: actualRevenue }
+      ]
+    };
+
+    // ---- bind Chart 2 (Last 7 vs Last Year) ----
+    const p2 = this.last7VsLastYearPoints();
+
+    const actualSeries: (number | null)[] = p2.map(x => x.actual);
+    const lastYearSeries: number[] = p2.map(x => x.lastYear);
+
+    this.last7VsLastYearChartData = {
+      labels: p2.map(x => x.label), 
+      datasets: [
+        { label: 'Actual Revenue', data: actualSeries },
+        { label: 'Same Week Last Year', data: lastYearSeries }
+      ]
+    };
   }
+
+  // Chart 1: Target vs Actual (7-week window)
+  targetVsActualChartData: ChartData<'bar'> = {
+    labels: [],
+    datasets: [
+      { label: 'Target Revenue', data: [] },
+      { label: 'Actual Revenue', data: [] }
+    ]
+  };
+
+  targetVsActualChartOptions: ChartConfiguration<'bar'>['options'] = {
+    responsive: true
+  };
+
+  // Chart 2: Last 7 vs Last Year (line)
+  last7VsLastYearChartData: ChartData<'line'> = {
+    labels: [],
+    datasets: [
+      { label: 'Actual Revenue', data: [] },
+      { label: 'Same Week Last Year', data: [] }
+    ]
+  };
+
+  last7VsLastYearChartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    plugins: {
+      tooltip: {
+        callbacks: {
+          title: (items) => `Week ${items[0].label?.replace('W', '')}`,
+          label: (item) => {
+            const val = item.parsed.y ?? 0;
+            return `${item.dataset.label}: ${val.toLocaleString()}`;
+          }
+        }
+      }
+    }
+  };
 }

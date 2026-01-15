@@ -24,10 +24,21 @@
   </div>
 </section>
 
-<h3>Chart 1 Data (Target vs Actual)</h3>
-<pre>{{ targetVsActualPoints() | json }}</pre>
+<h2>Target vs Actual Revenue (7-week window)</h2>
+<canvas
+  baseChart
+  [type]="'bar'"
+  [data]="targetVsActualChartData"
+  [options]="targetVsActualChartOptions">
+</canvas>
 
-<h3>Chart 2 Data (Last 7 vs Last Year)</h3>
+<h2>Actual Revenue: Last 7 Weeks vs Same Weeks Last Year</h2>
+<canvas
+  baseChart
+  [type]="'line'"
+  [data]="last7VsLastYearChartData"
+  [options]="last7VsLastYearChartOptions">
+</canvas>
 <pre>{{ last7VsLastYearPoints() | json }}</pre>
 
 <h2>Edit Week</h2>
