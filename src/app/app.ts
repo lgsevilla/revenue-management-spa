@@ -27,6 +27,14 @@ export class AppComponent implements OnInit {
   targetVsActualPoints = signal<Array<{ weekEnding: string; target: number; actual: number }>>([]);
   last7VsLastYearPoints = signal<Array<{ label: string; actual: number | null; lastYear: number }>>([]);
 
+  loadingConfig = signal(true);
+  loadingWeeks = signal(true);
+  loadingKpis = signal(true);
+  loadingLastYear = signal(true);
+
+  saving = signal(false);
+  showDeleteModal = signal(false);
+
   private recomputeKpisFromWeeks(): void {
     const current = this.kpis()?.currentWeekEnding ?? '';
 
@@ -57,7 +65,8 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     this.api.getConfig(this.user).subscribe({
       next: c => this.config.set(c),
-      error: e => this.error.set(e?.message ?? 'Failed to load config')
+      error: e => this.error.set(e?.message ?? 'Failed to load config'),
+      complete: () => this.loadingConfig.set(false)
     });
 
     this.api.getWeeks(this.user).subscribe({
@@ -66,7 +75,8 @@ export class AppComponent implements OnInit {
         this.recomputeKpisFromWeeks();
         this.buildChartData();
       },
-      error: e => this.error.set(e?.message ?? 'Failed to load weeks')
+      error: e => this.error.set(e?.message ?? 'Failed to load weeks'),
+      complete: () => this.loadingWeeks.set(false)
     });
 
     this.api.getKpis(this.user).subscribe({
@@ -75,7 +85,8 @@ export class AppComponent implements OnInit {
         this.recomputeKpisFromWeeks();
         this.buildChartData();
       },
-      error: e => this.error.set(e?.message ?? 'Failed to load KPIs')
+      error: e => this.error.set(e?.message ?? 'Failed to load KPIs'),
+      complete: () => this.loadingKpis.set(false)
     });
 
     this.api.getLastYear(this.user).subscribe({
@@ -83,28 +94,35 @@ export class AppComponent implements OnInit {
         this.lastYear.set(ly);
         this.buildChartData();
       },
-      error: e => this.error.set(e?.message ?? 'Failed to load last-year data')
+      error: e => this.error.set(e?.message ?? 'Failed to load last-year data'),
+      complete: () => this.loadingLastYear.set(false)
     });
   }
 
   private refreshWeeks(): void {
+    this.loadingWeeks.set(true);
     this.api.getWeeks(this.user).subscribe({
       next: w => {
         this.weeks.set([...w].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding)));
         this.recomputeKpisFromWeeks();
         this.buildChartData();
       },
-      error: e => this.error.set(e?.message ?? 'Failed to load weeks')
+      error: e => this.error.set(e?.message ?? 'Failed to load weeks'),
+      complete: () => this.loadingWeeks.set(false)
     });
   }
 
   submitForm(): void {
+    if (this.saving()) return;
+
     this.message.set(null);
     this.error.set(null);
+    this.saving.set(true);
 
     const weekEnding = this.form.weekEnding?.trim();
     if (!weekEnding) {
       this.error.set('weekEnding is required');
+      this.saving.set(false);
       return;
     }
 
@@ -136,17 +154,22 @@ export class AppComponent implements OnInit {
       },
       error: (e) => {
         this.error.set(e?.error?.error ?? e?.message ?? 'Save failed');
-      }
+      },
+      complete: () => this.saving.set(false)
     });
   }
 
   deleteByWeekEnding(): void {
+    if (this.saving()) return;
+
     this.message.set(null);
     this.error.set(null);
+    this.saving.set(true);
 
     const weekEnding = this.form.weekEnding?.trim();
     if (!weekEnding) {
       this.error.set('weekEnding is required for delete');
+      this.saving.set(false);
       return;
     }
 
@@ -157,8 +180,24 @@ export class AppComponent implements OnInit {
       },
       error: (e) => {
         this.error.set(e?.error?.error ?? e?.message ?? 'Delete failed');
-      }
+      },
+      complete: () => this.saving.set(false)
     });
+  }
+
+  confirmDelete(): void {
+    const weekEnding = this.form.weekEnding?.trim();
+    if (!weekEnding) {
+      this.error.set('weekEnding is required for delete');
+      return;
+    }
+
+    this.showDeleteModal.set(true);
+  }
+
+  confirmDeleteAndRun(): void {
+    this.showDeleteModal.set(false);
+    this.deleteByWeekEnding();
   }
 
   private buildChartData(): void {

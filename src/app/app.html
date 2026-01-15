@@ -1,120 +1,310 @@
-<h1>Revenue Management Tool</h1>
+<div class="container my-4">
 
-<p *ngIf="error()" style="color:red">{{ error() }}</p>
+  <!-- Header -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <div>
+      <h1 class="h3 mb-1">Revenue Management Tool</h1>
+      <div *ngIf="loadingConfig()" class="text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        Loading configuration…
+      </div>
 
-<section *ngIf="config() as cfg">
-  <h3>{{ cfg.market }} / {{ cfg.region }}</h3>
-  <p>Target FTE: {{ cfg.targetFte }}</p>
-</section>
+      <div class="text-muted" *ngIf="!loadingConfig() && config() as cfg">
+        {{ cfg.market }} / {{ cfg.region }} · Target FTE: {{ cfg.targetFte }}
+      </div>
+    </div>
 
-<section style="display:flex; gap:12px; margin: 12px 0;">
-  <div style="border:1px solid #ccc; padding:12px; min-width:220px;">
-    <div><strong>Current Week Ending</strong></div>
-    <div>{{ kpis()?.currentWeekEnding ?? '-' }}</div>
+    <div class="d-flex gap-2 align-items-center mt-2 mt-sm-0">
+      <span class="badge text-bg-secondary">User: {{ user }}</span>
+    </div>
   </div>
 
-  <div style="border:1px solid #ccc; padding:12px; min-width:220px;">
-    <div><strong>FTE Needed Next Week</strong></div>
-    <div>{{ fteNeededNextWeek() }}</div>
+  <!-- Error / Message -->
+  <div *ngIf="error()" class="alert alert-danger" role="alert">
+    {{ error() }}
   </div>
 
-  <div style="border:1px solid #ccc; padding:12px; min-width:220px;">
-    <div><strong>Revenue to Target (Current Week)</strong></div>
-    <div>{{ revenueToTargetCurrentWeek() | number }}</div>
-  </div>
-</section>
-
-<h2>Target vs Actual Revenue (7-week window)</h2>
-<canvas
-  baseChart
-  [type]="'bar'"
-  [data]="targetVsActualChartData"
-  [options]="targetVsActualChartOptions">
-</canvas>
-
-<h2>Actual Revenue: Last 7 Weeks vs Same Weeks Last Year</h2>
-<canvas
-  baseChart
-  [type]="'line'"
-  [data]="last7VsLastYearChartData"
-  [options]="last7VsLastYearChartOptions">
-</canvas>
-<pre>{{ last7VsLastYearPoints() | json }}</pre>
-
-<h2>Edit Week</h2>
-
-<p *ngIf="message()" style="color: green">{{ message() }}</p>
-
-<form (ngSubmit)="submitForm()" #f="ngForm">
-  <div>
-    <label>Week Ending (required): </label>
-    <input
-      name="weekEnding"
-      type="date"
-      required
-      [(ngModel)]="form.weekEnding" />
+  <div *ngIf="message()" class="alert alert-success" role="alert">
+    {{ message() }}
   </div>
 
-  <div>
-    <label>Target Revenue: </label>
-    <input
-      name="targetRevenue"
-      type="number"
-      [(ngModel)]="form.targetRevenue" />
+  <!-- KPI Cards -->
+  <div *ngIf="loadingKpis()" class="d-flex justify-content-center my-4">
+    <div class="spinner-border" role="status"></div>
+  </div> 
+  <div class="row g-3 mb-3" *ngIf="!loadingKpis()">
+    <div class="col-12 col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">Current Week Ending</div>
+          <div class="fs-4 fw-semibold">
+            {{ kpis()?.currentWeekEnding ?? '-' }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">FTE Needed Next Week</div>
+          <div class="fs-4 fw-semibold">
+            {{ fteNeededNextWeek() }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">Revenue to Target (Current Week)</div>
+          <div class="fs-4 fw-semibold">
+            {{ revenueToTargetCurrentWeek() | number }}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div>
-    <label>Actual Revenue: </label>
-    <input
-      name="actualRevenue"
-      type="number"
-      [(ngModel)]="form.actualRevenue" />
+  <!-- Charts -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h5 mb-0">Target vs Actual Revenue (7-week window)</h2>
+          </div>
+          <div *ngIf="loadingWeeks() || loadingLastYear()" class="d-flex justify-content-center my-4">
+            <div class="spinner-border" role="status"></div>
+          </div>
+          <canvas
+            *ngIf="!loadingWeeks() && !loadingLastYear()"
+            baseChart
+            [type]="'bar'"
+            [data]="targetVsActualChartData"
+            [options]="targetVsActualChartOptions">
+          </canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h5 mb-0">Actual Revenue: Last 7 Weeks vs Same Weeks Last Year</h2>
+          </div>
+          <div *ngIf="loadingWeeks() || loadingLastYear()" class="d-flex justify-content-center my-4">
+            <div class="spinner-border" role="status"></div>
+          </div>
+          <canvas
+            *ngIf="!loadingWeeks() && !loadingLastYear()"
+            baseChart
+            [type]="'line'"
+            [data]="last7VsLastYearChartData"
+            [options]="last7VsLastYearChartOptions">
+          </canvas>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div>
-    <label>Open Orders: </label>
-    <input
-      name="openOrders"
-      type="number"
-      [(ngModel)]="form.openOrders" />
+  <!-- Edit Form -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Edit Week</h2>
+        <span class="text-muted small">All fields optional except date</span>
+      </div>
+      <fieldset [disabled]="saving()">
+        <form (ngSubmit)="submitForm()" #f="ngForm" class="row g-3">
+          <div class="col-12 col-md-3">
+            <label class="form-label">Week Ending <span class="text-danger">*</span></label>
+            <input
+              name="weekEnding"
+              type="date"
+              class="form-control"
+              required
+              [(ngModel)]="form.weekEnding" />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label">Target Revenue</label>
+            <input
+              name="targetRevenue"
+              type="number"
+              class="form-control"
+              [(ngModel)]="form.targetRevenue" />
+          </div>
+
+          <div class="col-12 col-md-2">
+            <label class="form-label">Actual Revenue</label>
+            <input
+              name="actualRevenue"
+              type="number"
+              class="form-control"
+              [(ngModel)]="form.actualRevenue" />
+          </div>
+
+          <div class="col-12 col-md-2">
+            <label class="form-label">Open Orders</label>
+            <input
+              name="openOrders"
+              type="number"
+              class="form-control"
+              [(ngModel)]="form.openOrders" />
+          </div>
+
+          <div class="col-12 col-md-2">
+            <label class="form-label">Revenue / FTE</label>
+            <input
+              name="revenuePerFte"
+              type="number"
+              class="form-control"
+              [(ngModel)]="form.revenuePerFte" />
+          </div>
+
+          <div class="col-12 d-flex gap-2">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="saving()">
+              <span *ngIf="saving()" class="spinner-border spinner-border-sm me-2"></span>
+              Save
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-outline-danger"
+              [disabled]="saving()"
+              (click)="confirmDelete()">
+              Delete
+            </button>
+          </div>
+        </form>
+      </fieldset>
+    </div>
   </div>
 
-  <div>
-    <label>Revenue per FTE: </label>
-    <input
-      name="revenuePerFte"
-      type="number"
-      [(ngModel)]="form.revenuePerFte" />
+  <!-- Table -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h5 mb-0">Weekly Performance</h2>
+        <span class="text-muted small" *ngIf="weeks().length">
+          Rows: {{ weeks().length }}
+        </span>
+      </div>
+
+      <div class="table-responsive" *ngIf="weeks().length > 0; else noData">
+        <table class="table table-striped table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Week Ending</th>
+              <th class="text-end">Target Revenue</th>
+              <th class="text-end">Actual Revenue</th>
+              <th class="text-end">Revenue / FTE</th>
+              <th class="text-end">Open Orders</th>
+              <th class="text-end">FTE to Target</th>
+              <th class="text-end">Revenue to Target</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let w of weeks()"
+              [class.table-row-bad]="w.revenueToTarget > 0"
+              [class.table-row-good]="w.revenueToTarget <= 0">
+              <td class="fw-semibold">
+                <span
+                  class="badge"
+                  [class.text-bg-danger]="w.revenueToTarget > 0"
+                  [class.text-bg-success]="w.revenueToTarget <= 0">
+                  {{ w.revenueToTarget > 0 ? 'Below Target' : 'On Track' }}
+                </span>
+                {{ w.weekEnding }}
+              </td>
+              <td class="text-end">{{ w.targetRevenue | number }}</td>
+              <td class="text-end">{{ (w.actualRevenue ?? 0) | number }}</td>
+              <td class="text-end">{{ (w.revenuePerFte ?? 0) | number }}</td>
+              <td class="text-end">{{ (w.openOrders ?? 0) }}</td>
+              <td
+                class="text-end fw-semibold"
+                [class.text-warning]="w.fteToTarget > 0"
+                [class.text-muted]="w.fteToTarget <= 0">
+                {{ w.fteToTarget }}
+              </td>
+
+              <td
+                class="text-end fw-semibold"
+                [class.text-danger]="w.revenueToTarget > 0"
+                [class.text-success]="w.revenueToTarget <= 0">
+                {{ w.revenueToTarget | number }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Delete Confirmation Modal -->
+      <div
+        class="modal fade show"
+        tabindex="-1"
+        role="dialog"
+        *ngIf="showDeleteModal()"
+        style="display: block; background: rgba(0,0,0,0.5);">
+
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+
+            <div class="modal-header">
+              <h5 class="modal-title">Confirm Delete</h5>
+              <button
+                type="button"
+                class="btn-close"
+                (click)="showDeleteModal.set(false)">
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <p class="mb-1">
+                Are you sure you want to delete this week?
+              </p>
+              <p class="fw-semibold mb-0">
+                {{ form.weekEnding }}
+              </p>
+              <p class="text-danger small mt-2 mb-0">
+                This action cannot be undone.
+              </p>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                [disabled]="saving()"
+                (click)="showDeleteModal.set(false)">
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-danger"
+                [disabled]="saving()"
+                (click)="confirmDeleteAndRun()">
+                <span *ngIf="saving()" class="spinner-border spinner-border-sm me-2"></span>
+                Delete
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <ng-template #noData>
+        <div class="text-muted">No data yet.</div>
+      </ng-template>
+    </div>
   </div>
 
-  <button type="submit">Save (POST/PUT)</button>
-  <button type="button" (click)="deleteByWeekEnding()">Delete</button>
-</form>
-
-<table *ngIf="weeks().length > 0" border="1" cellpadding="6" cellspacing="0">
-  <thead>
-    <tr>
-      <th>Week Ending</th>
-      <th>Target Revenue</th>
-      <th>Actual Revenue</th>
-      <th>Revenue / FTE</th>
-      <th>Open Orders</th>
-      <th>FTE to Target</th>
-      <th>Revenue to Target</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <tr *ngFor="let w of weeks()">
-      <td>{{ w.weekEnding }}</td>
-      <td>{{ w.targetRevenue | number }}</td>
-      <td>{{ (w.actualRevenue ?? 0) | number }}</td>
-      <td>{{ (w.revenuePerFte ?? 0) | number }}</td>
-      <td>{{ (w.openOrders ?? 0) }}</td>
-      <td>{{ w.fteToTarget }}</td>
-      <td>{{ w.revenueToTarget | number }}</td>
-    </tr>
-  </tbody>
-</table>
-
-<p *ngIf="weeks().length === 0">No data yet.</p>
+</div>
